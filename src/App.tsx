@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { GoogleGenAI } from "@google/genai";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -26,6 +27,8 @@ export default function App() {
   const [lastDecision, setLastDecision] = useState<Decision | null>(null);
   const [history, setHistory] = useState<any[]>([]);
 
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+
   // Simulate price ticks
   useEffect(() => {
     const interval = setInterval(() => {
@@ -37,21 +40,40 @@ export default function App() {
   const runAnalysis = async () => {
     setIsAnalyzing(true);
     try {
-      const res = await fetch('/api/analyze', {
+      // 1. Fetch sentiment context from backend (Tavily search)
+      const searchRes = await fetch('/api/search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ticker, price })
+        body: JSON.stringify({ ticker })
       });
-      const data = await res.json();
+      const { context } = await searchRes.json();
+
+      // 2. Perform AI Analysis on frontend
+      if (!process.env.GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY is missing. Please set it in the Settings menu (Secrets).");
+      }
+      const prompt = `Analyze current sentiment for ${ticker} trading at $${price}. 
+      Context from latest news: ${context}. 
+      Respond ONLY in valid JSON format: { "decision": "BUY"|"SELL"|"HOLD", "reason": "concise explanation in French", "confidence": 0.8 }`;
+
+      const response = await ai.models.generateContent({
+        model: "gemini-3-flash-preview",
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json"
+        }
+      });
+
+      const data = JSON.parse(response.text.trim());
       setLastDecision(data);
       setHistory(prev => [{ ...data, ticker, price, timestamp: new Date() }, ...prev]);
     } catch (err) {
       console.error(err);
-      // Fallback for demo if API not configured
+      // Fallback for demo if API not configured or error occurs
       const mock: Decision = {
         decision: Math.random() > 0.5 ? 'BUY' : 'SELL',
-        reason: "L'action est très discutée aujourd'hui. Les traders sont extrêmement optimistes sur les forums institutionnels.",
-        confidence: 0.85
+        reason: "Erreur d'analyse. Utilisation du mode simulation basé sur les tendances historiques.",
+        confidence: 0.5
       };
       setLastDecision(mock);
       setHistory(prev => [{ ...mock, ticker, price, timestamp: new Date() }, ...prev]);

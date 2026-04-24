@@ -3,7 +3,6 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import dotenv from "dotenv";
 import axios from "axios";
-import { GoogleGenerativeAI } from "@google/genai";
 
 dotenv.config();
 
@@ -14,10 +13,8 @@ async function startServer() {
   app.use(express.json());
 
   // API Routes
-  app.post("/api/analyze", async (req, res) => {
-    const { ticker, price } = req.body;
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  app.post("/api/search", async (req, res) => {
+    const { ticker } = req.body;
 
     try {
       // 1. Search for sentiment via Tavily
@@ -29,16 +26,10 @@ async function startServer() {
       });
 
       const context = tavilyResponse.data.results.map((r: any) => `${r.title}: ${r.content}`).join("\n");
-
-      // 2. Gemini Decision
-      const prompt = `Analyze: ${ticker} at $${price}. Context: ${context}. Respond in JSON: { "decision": "BUY"|"SELL"|"HOLD", "reason": "...", "confidence": 0.8 }`;
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().replace(/```json|```/g, "").trim();
-      
-      res.json(JSON.parse(text));
+      res.json({ context });
     } catch (error) {
       console.error(error);
-      res.status(500).json({ error: "Failed to analyze sentiment" });
+      res.status(500).json({ error: "Failed to fetch sentiment data" });
     }
   });
 
