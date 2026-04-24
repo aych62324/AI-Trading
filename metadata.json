@@ -1,0 +1,6 @@
+{
+  "name": "LiquidGrok Dashboard",
+  "description": "AI-powered trading dashboard using Gemini and Hyperliquid sentiment analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["AI Trading", "Sentiment Analysis", "Crypto Execution"]
+}
